@@ -73,7 +73,7 @@ for i in range(int(rail_len // 10)):
     rail -= Pos(410 - rail_len / 2 + 5 + i * 10, 0, R_RCV + 6.5) * Box(5.3, 24, 3)
 
 # Bolt handle: stem angled down and back, ball knob
-stem = Pos(318, -R_RCV, -2) * Rot(-30, 0, 0) * Rot(90, 0, 0) * Cylinder(5, 40, align=(Align.CENTER, Align.CENTER, Align.MIN))
+stem = Pos(318, -R_RCV, -2) * Rot(30, 0, 0) * Rot(90, 0, 0) * Cylinder(5, 40, align=(Align.CENTER, Align.CENTER, Align.MIN))
 knob = Pos(318, -R_RCV - 34, -22) * Sphere(10)
 
 # Trigger guard loop and trigger
