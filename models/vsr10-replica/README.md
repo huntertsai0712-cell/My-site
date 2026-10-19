@@ -11,7 +11,10 @@ is a smooth loft of cross-sections along that outline: an egg-shaped butt
 with a round comb, a wrist and pistol grip that blend into it without seams,
 a flat-topped action area and a rounded forend belly. The recoil pad is a
 separate 21 mm band with a parting groove, a slightly domed face, a rounded
-heel and the forward lean of the pad face measured from the photo.
+heel and the forward lean of the pad face measured from the photo. The
+trigger guard follows the photo too: a base plate inlaid in the underside
+with a screw at each end, an open bow whose ends flare into the plate with
+rounded shoulders, and a tapered, curved trigger coming out of a slot.
 `comparison.png` shows the photo, the model rendered at the same scale, and
 the two overlaid.
 

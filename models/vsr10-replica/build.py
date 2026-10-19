@@ -202,19 +202,6 @@ stem = Pos(352, -R_RCV + 2, Z_RCV) * Rot(30, 0, 0) * Rot(90, 0, 0) \
     * Cylinder(4.5, 36, align=(Align.CENTER, Align.CENTER, Align.MIN))
 knob = Pos(352, -R_RCV - 29, Z_RCV - 18) * Sphere(8.5)
 
-# Trigger guard: thin round loop (X 317-371, Z -51..-83 in the photo)
-loop = Pos(345, -66) * Ellipse(26, 17) - Pos(345, -66) * Ellipse(22, 13)   # sketch (x, z)
-guard = extrude(Plane.XZ * loop, amount=4, both=True)
-guard &= Pos(345, 0, -80) * Box(80, 20, 70)                        # top sinks into the stock
-
-# Curved trigger blade built from short straight segments
-trigger = Part()
-blade = [(341, -50), (338, -56), (336, -62), (338, -68), (343, -73)]
-for (xa, za), (xb, zb) in zip(blade, blade[1:]):
-    angle = -math.degrees(math.atan2(zb - za, xb - xa))
-    length = math.hypot(xb - xa, zb - za) + 2.4
-    trigger += Pos((xa + xb) / 2, 0, (za + zb) / 2) * Rot(0, angle, 0) * Box(length, 5, 2.4)
-
 # Barrel
 barrel = Pos(X_RCV1 - 10, 0, 0) * Rot(0, 90, 0) \
     * Cylinder(11.2, OVERALL - X_RCV1 + 10, align=(Align.CENTER, Align.CENTER, Align.MIN))
@@ -238,7 +225,130 @@ swivel = Pos(66, 0, -120) * Cylinder(4, 10, align=(Align.CENTER, Align.CENTER, A
 swivel += Pos(66, 0, -128) * Box(10, 9, 4)
 swivel += Pos(66, 0, -139) * Rot(90, 0, 0) * Torus(8, 1.8)
 
-parts = [receiver, cocking, rail, stem, knob, guard, trigger, barrel, fore_rail, bipod, swivel]
+parts = [receiver, cocking, rail, stem, knob, barrel, fore_rail, bipod, swivel]
+
+
+# ================================================================ trigger guard
+# Modelled on the photo: a base plate inlaid in the underside of the stock, an
+# open bow (the stock forms the top of the finger hole) whose ends flare into
+# the plate with rounded shoulders, and a curved trigger coming out of a slot.
+PLATE_X = (306.0, 395.0)        # base plate length along the underside
+PLATE_HALF_W = 8.0
+PLATE_T = 0.5                   # plate stands this much proud of the stock
+BOW_FRONT, BOW_REAR = 372.4, 321.6      # centre line of the bow's front and rear sides
+BOW_BOTTOM = -82.1
+BOW_CORNERS = (16.0, 14.5)      # bottom corner radii, front and rear
+BOW_HALF = (1.4, 4.0)           # bow half-thickness (side view) and half-width
+FLARE = (3.5, 2.5)              # shoulder radius where the bow meets the plate: side view, across
+TRIGGER = [(346.8, -49.0), (344.6, -53.0), (342.2, -55.5), (339.7, -58.0), (337.9, -60.4),
+           (336.0, -62.9), (335.3, -65.4), (334.9, -67.8), (334.8, -70.3), (334.9, -72.8),
+           (335.5, -75.2), (336.6, -77.2)]      # blade centre line traced from the photo (x, z)
+
+
+def plate_surface(x):
+    return belly(x) - PLATE_T
+
+
+def resample(points, step):
+    """Evenly spaced points along a polyline."""
+    p = np.asarray(points, float)
+    s = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(p, axis=0), axis=1))])
+    t = np.linspace(0, s[-1], max(2, int(s[-1] / step) + 1))
+    return np.column_stack([np.interp(t, s, p[:, i]) for i in range(p.shape[1])])
+
+
+def catmull_rom(points, per_segment=12):
+    """Smooth curve through the points."""
+    p = np.asarray(points, float)
+    p = np.vstack([2 * p[0] - p[1], p, 2 * p[-1] - p[-2]])
+    out = []
+    for i in range(1, len(p) - 2):
+        for t in np.linspace(0, 1, per_segment, endpoint=False):
+            out.append(0.5 * (2 * p[i] + (p[i + 1] - p[i - 1]) * t
+                              + (2 * p[i - 1] - 5 * p[i] + 4 * p[i + 1] - p[i + 2]) * t * t
+                              + (3 * p[i] - p[i - 1] - 3 * p[i + 1] + p[i + 2]) * t ** 3))
+    out.append(p[-2])
+    return np.array(out)
+
+
+def tube(path, half_n, half_b, round_end=0.0, squareness=4.0, segments=48):
+    """Closed tube along a path in the XZ plane with a rounded-rectangle section.
+
+    half_n, half_b: half-size in the path's plane and across it (along Y), per point.
+    round_end: radius of a domed cap at the end of the path (0 for a flat cap).
+    """
+    p = np.column_stack([path[:, 0], np.zeros(len(path)), path[:, 1]])
+    tangent = np.gradient(p, axis=0)
+    tangent /= np.linalg.norm(tangent, axis=1)[:, None]
+    across = np.array([0.0, 1.0, 0.0])
+    normal = np.cross(across, tangent)
+    phi = np.linspace(0, 2 * math.pi, segments, endpoint=False)
+    un = np.sign(np.cos(phi)) * np.abs(np.cos(phi)) ** (2 / squareness)
+    ub = np.sign(np.sin(phi)) * np.abs(np.sin(phi)) ** (2 / squareness)
+
+    def ring(centre, n, a, b):
+        return centre + a * un[:, None] * n + b * ub[:, None] * across
+
+    rings = [ring(p[k], normal[k], half_n[k], half_b[k]) for k in range(len(p))]
+    end = p[-1]
+    if round_end:
+        for a in np.linspace(0, math.pi / 2, 7)[1:-1]:
+            rings.append(ring(p[-1] + tangent[-1] * round_end * math.sin(a), normal[-1],
+                              half_n[-1] * math.cos(a), half_b[-1] * math.cos(a)))
+        end = p[-1] + tangent[-1] * round_end
+    return loft(p[:1], rings, end[None, :])
+
+
+def build_guard_bow():
+    (rf, rr), (hn, hb) = BOW_CORNERS, BOW_HALF
+    pts = [(BOW_FRONT, plate_surface(BOW_FRONT) + 3)]           # ends run up into the stock
+    pts += [(BOW_FRONT - rf + rf * math.cos(a), BOW_BOTTOM + rf + rf * math.sin(a))
+            for a in np.linspace(0, -math.pi / 2, 60)]
+    pts += [(BOW_REAR + rr + rr * math.cos(a), BOW_BOTTOM + rr + rr * math.sin(a))
+            for a in np.linspace(-math.pi / 2, -math.pi, 60)]
+    pts += [(BOW_REAR, plate_surface(BOW_REAR) + 3)]
+    path = resample(pts, 0.4)
+    depth = np.array([plate_surface(x) - z for x, z in path])  # how far below the plate
+
+    def shoulder(r):          # quarter-round flare, full size at the plate, gone r below it
+        d = np.clip(depth, 0, r)
+        return r - np.sqrt(np.maximum(r * r - (r - d) ** 2, 0))
+
+    return tube(path, hn + shoulder(FLARE[0]), hb + shoulder(FLARE[1]))
+
+
+def build_trigger():
+    path = resample(catmull_rom(TRIGGER), 0.3)
+    s = np.linspace(0, 1, len(path))                             # tapers toward the tip
+    return tube(path, 2.0 - 0.9 * s, 3.0 - 0.4 * s, round_end=1.1, squareness=3.0)
+
+
+def build_plate():
+    """The stock's skin grown by PLATE_T, kept within the plate outline on the underside."""
+    x0, x1 = PLATE_X
+    rings = []
+    for x in np.arange(x0 - 4, x1 + 4.01, 1.0):
+        y, z = section(x, -PLATE_T)
+        rings.append(np.column_stack([np.full_like(y, x), y, z]))
+    skin = loft(rings[0].mean(axis=0, keepdims=True), rings, rings[-1].mean(axis=0, keepdims=True))
+    z0, z1 = belly(x0) + 6, belly(x1) + 6                         # underside only
+    slope = math.degrees(math.atan2(z1 - z0, x1 - x0))
+    below = Pos((x0 + x1) / 2, 0, (z0 + z1) / 2) * Rot(0, -slope, 0) * Pos(0, 0, -50) * Box(300, 100, 100)
+    outline = Pos((x0 + x1) / 2, 0) * SlotCenterToCenter(x1 - x0 - 2 * PLATE_HALF_W, 2 * PLATE_HALF_W)
+    region = extrude(outline, amount=200, both=True) & below
+    return to_manifold(skin) ^ to_manifold(tessellated(region))
+
+
+def plate_recesses():
+    """Screw heads at both ends of the plate and the slot the trigger comes out of."""
+    cuts = []
+    for x in (PLATE_X[0] + 5.0, PLATE_X[1] - 8.0):
+        z = plate_surface(x)
+        cuts.append(Pos(x, 0, z + 1.2) * Cylinder(3.2, 6, align=(Align.CENTER, Align.CENTER, Align.MAX)))
+        cuts.append(Pos(x, 0, z + 3.5) * extrude(RegularPolygon(1.8, 6), amount=-6))   # hex socket
+    slot = fillet(Box(10, 7, 6, align=(Align.CENTER, Align.CENTER, Align.MAX)).edges().filter_by(Axis.Z), 2.5)
+    cuts.append(Pos(344.5, 0, plate_surface(344.5) + 1.5) * slot)
+    return cuts
 
 
 # ================================================================ assemble
@@ -263,7 +373,10 @@ def tessellated(part):
 
 stock = build_stock()
 print(f"stock: {len(stock.faces)} faces, watertight={stock.is_watertight}")
-rifle = mf.Manifold.batch_boolean([to_manifold(stock)] + [to_manifold(tessellated(p)) for p in parts],
+body = mf.Manifold.batch_boolean([to_manifold(stock), build_plate()]
+                                 + [to_manifold(tessellated(p)) for p in parts], mf.OpType.Add)
+body -= mf.Manifold.batch_boolean([to_manifold(tessellated(c)) for c in plate_recesses()], mf.OpType.Add)
+rifle = mf.Manifold.batch_boolean([body, to_manifold(build_guard_bow()), to_manifold(build_trigger())],
                                   mf.OpType.Add)
 out = rifle.to_mesh()
 mesh = trimesh.Trimesh(np.asarray(out.vert_properties)[:, :3], np.asarray(out.tri_verts))
