@@ -4,11 +4,14 @@ Full-size, solid display prop of a VSR-10 style bolt-action airsoft rifle with
 a sporter stock. It is a single solid body with no working parts and a
 blocked muzzle.
 
-The stock's full side outline is traced pixel by pixel from `reference.png`
-(`trace_profile.py` -> `stock_profile.json`, simplified to within 0.4 mm) and
-scaled to the VSR-10's published overall length of 1075 mm (1.234 mm per
-pixel). The stock is then shaped in 3D: 9 mm rounded edges, narrowing through
-the wrist and pistol grip, and a separate butt pad.
+The stock's side outline is traced from `reference.png` to sub-pixel
+precision (`trace_profile.py` -> `stock_profile.json`) and scaled to the
+VSR-10's published overall length of 1075 mm (1.234 mm per pixel). The stock
+is a smooth loft of cross-sections along that outline: an egg-shaped butt
+with a round comb, a wrist and pistol grip that blend into it without seams,
+a flat-topped action area and a rounded forend belly. The recoil pad is a
+separate 21 mm band with a parting groove, a slightly domed face, a rounded
+heel and the forward lean of the pad face measured from the photo.
 `comparison.png` shows the photo, the model rendered at the same scale, and
 the two overlaid.
 
@@ -18,16 +21,21 @@ the two overlaid.
 | | |
 |---|---|
 | Overall length | 1075 mm |
-| Height | 166 mm (including sling swivel and bipod stud) |
-| Width | 42 mm butt, 31 mm wrist/grip, 40 mm forend (72 mm including bolt knob) |
-| Solid volume | ~1.91 L (about 2.4 kg of PLA at 100 % infill; roughly 0.8–1 kg at 15 % infill with 3 walls) |
+| Height | 166 mm (including sling swivel and bipod post) |
+| Width | 41 mm butt (42 mm over the pad), 32 mm wrist/grip, 40 mm action and forend (72 mm including bolt knob) |
+| Solid volume | ~1.72 L (about 2.1 kg of PLA at 100 % infill; roughly 0.7–0.9 kg at 15 % infill with 3 walls) |
 
 ## Files
 
 - `vsr10_replica.stl` – the printable model (one watertight solid, checked with `stl-check`)
 - `trace_profile.py` – traces the stock outline from the photo into `stock_profile.json`
-- `build.py` – parametric source (build123d); run `python3 trace_profile.py && python3 build.py`
+- `build.py` – model source: lofted stock mesh plus build123d metal parts, joined with
+  manifold3d; run `python3 trace_profile.py && python3 build.py`
 - `reference.png`, `comparison.png`, `preview.png`
+
+The stock's cross-section shape is set by the keyframes in `SHAPE` at the top
+of `build.py` (crown width and height, widest point, bottom rounding), so it
+can be reshaped without touching the traced outline.
 
 ## Limits
 
